@@ -31,15 +31,13 @@ SELF_MUTE = os.environ.get('SELF_MUTE', 'true').lower() == 'true'
 SELF_DEAF = os.environ.get('SELF_DEAF', 'true').lower() == 'true'
 
 RECONNECT_DELAY = 5
-MAX_RECONNECT_ATTEMPTS = 10
-
-MUTE_CHANGE_MIN = 300
-MUTE_CHANGE_MAX = 600
+MAX_RECONNECT_ATTEMPTS = 20
 
 ws_global = None
 channel_id_global = None
 guild_id_global = None
 running = threading.Event()
+voice_connected = threading.Event()
 
 def load_state():
     if os.path.exists(DATA_FILE):
@@ -91,7 +89,7 @@ def update_voice_state(ws, channel_id, guild_id, mute, deaf):
 def mute_deaf_worker():
     while running.is_set():
         try:
-            time.sleep(random.randint(MUTE_CHANGE_MIN, MUTE_CHANGE_MAX))
+            time.sleep(60)
             
             if ws_global and ws_global.sock and ws_global.sock.connected:
                 current_mute = random.choice([True, False])
@@ -157,6 +155,7 @@ def run_voice_connection(token, channel_id, guild_id, status, self_mute, self_de
         save_state(channel_id)
         
         ws_global = ws
+        voice_connected.set()
         
         stop_heartbeat.clear()
         heartbeat_thread = threading.Thread(target=send_heartbeat, args=(ws, heartbeat_interval, stop_heartbeat))
@@ -193,6 +192,7 @@ def run_voice_connection(token, channel_id, guild_id, status, self_mute, self_de
     finally:
         logger.info("Cerrando conexión...")
         stop_heartbeat.set()
+        voice_connected.clear()
         if heartbeat_thread and heartbeat_thread.is_alive():
             heartbeat_thread.join(timeout=2)
         try:
