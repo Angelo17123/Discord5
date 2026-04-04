@@ -45,6 +45,10 @@ sequence_global = None
 should_resume = threading.Event()
 kicked_from_channel = threading.Event()
 watchdog_stop = threading.Event()
+last_heartbeat_ack_time = time.time()
+heartbeat_ack_lock = threading.Lock()
+last_heartbeat_ack_time = time.time()
+heartbeat_ack_lock = threading.Lock()
 
 def load_state():
     if os.path.exists(DATA_FILE):
@@ -77,7 +81,6 @@ def get_user_info(token):
     return None
 
 def send_heartbeat(ws, heartbeat_interval, stop_event):
-    last_ack_time = time.time()
     consecutive_missed_acks = 0
 
     while not stop_event.is_set():
@@ -87,8 +90,9 @@ def send_heartbeat(ws, heartbeat_interval, stop_event):
             if stop_event.is_set():
                 break
 
-            now = time.time()
-            time_since_last_ack = now - last_ack_time
+            with heartbeat_ack_lock:
+                now = time.time()
+                time_since_last_ack = now - last_heartbeat_ack_time
             timeout_threshold = (heartbeat_interval / 1000) * HEARTBEAT_ACK_TIMEOUT_MULTIPLIER
 
             if time_since_last_ack > timeout_threshold and consecutive_missed_acks > 0:
@@ -252,6 +256,9 @@ def run_voice_connection(token, channel_id, guild_id, status, self_mute, self_de
             ws_global = ws
         voice_connected.set()
 
+        with heartbeat_ack_lock:
+            last_heartbeat_ack_time = time.time()
+
         stop_heartbeat.clear()
         heartbeat_thread = threading.Thread(target=send_heartbeat, args=(ws, heartbeat_interval, stop_heartbeat))
         heartbeat_thread.start()
@@ -268,6 +275,8 @@ def run_voice_connection(token, channel_id, guild_id, status, self_mute, self_de
                         sequence_global = seq
 
                     if op == 11:
+                        with heartbeat_ack_lock:
+                            last_heartbeat_ack_time = time.time()
                         logger.debug("Heartbeat ACK recibido")
                     elif op == 10:
                         logger.debug("Hello recibido (heartbeat configurado)")
