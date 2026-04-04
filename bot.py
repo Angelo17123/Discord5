@@ -91,13 +91,17 @@ def mute_deaf_worker():
         try:
             time.sleep(60)
             
-            if ws_global and ws_global.sock and ws_global.sock.connected:
-                current_mute = random.choice([True, False])
-                current_deaf = random.choice([True, False])
-                
-                update_voice_state(ws_global, channel_id_global, guild_id_global, current_mute, current_deaf)
+            if ws_global:
+                try:
+                    ws_global.ping()
+                    current_mute = random.choice([True, False])
+                    current_deaf = random.choice([True, False])
+                    
+                    update_voice_state(ws_global, channel_id_global, guild_id_global, current_mute, current_deaf)
+                except Exception:
+                    logger.debug("WebSocket no conectado, saltando cambio de mute/deaf")
             else:
-                logger.debug("WebSocket no conectado, saltando cambio de mute/deaf")
+                logger.debug("WebSocket no inicializado, saltando cambio de mute/deaf")
                 
         except Exception as e:
             logger.warning(f"Error en worker de mute/deaf: {e}")
