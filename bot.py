@@ -212,6 +212,7 @@ def run_voice_connection(token, channel_id, guild_id, status, self_mute, self_de
     heartbeat_thread = None
     heartbeat_interval = None
     needs_resume = should_resume.is_set() and session_id_global and sequence_global is not None
+    disconnect_reason = None  # FIX: track why we exited
 
     channel_id_global = channel_id
     guild_id_global = guild_id
@@ -239,6 +240,7 @@ def run_voice_connection(token, channel_id, guild_id, status, self_mute, self_de
                 "op": 2,
                 "d": {
                     "token": token,
+                    "intents": 0,
                     "properties": {
                         "$os": "Linux",
                         "$browser": "Discord Client",
@@ -308,6 +310,7 @@ def run_voice_connection(token, channel_id, guild_id, status, self_mute, self_de
                         # FIX: Discord pide reconexión -> cerrar y reconectar limpiamente
                         logger.warning("Reconnect requerido por Discord (op 7). Cerrando para reconectar...")
                         should_resume.set()
+                        disconnect_reason = 'resume'  # Discord nos pidió reconectar, resume válido
                         break  # Salir del loop, el finally cerrará la conexión
 
                     elif op == 9:
@@ -392,12 +395,20 @@ def run_voice_connection(token, channel_id, guild_id, status, self_mute, self_de
 
             except Exception as e:
                 logger.warning(f"Error en receive: {e}")
+                disconnect_reason = 'connection_lost'  # FIX: conexión perdida inesperadamente
                 break
 
     except Exception as e:
         logger.error(f"Error de conexión: {e}")
+        disconnect_reason = 'connection_error'
     finally:
         logger.info("Cerrando conexión...")
+        # FIX: Invalidar sesión solo si fue desconexión inesperada (no op 7 ni op 9 resumable)
+        if disconnect_reason in ('connection_lost', 'connection_error'):
+            logger.info("Desconexión inesperada - invalidando sesión para fresh identify")
+            session_id_global = None
+            sequence_global = None
+            should_resume.clear()
         stop_heartbeat.set()
         voice_connected.clear()
         if heartbeat_thread and heartbeat_thread.is_alive():
