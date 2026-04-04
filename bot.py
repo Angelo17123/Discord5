@@ -47,8 +47,8 @@ kicked_from_channel = threading.Event()
 watchdog_stop = threading.Event()
 last_heartbeat_ack_time = time.time()
 heartbeat_ack_lock = threading.Lock()
-last_heartbeat_ack_time = time.time()
-heartbeat_ack_lock = threading.Lock()
+resume_fail_count = 0
+max_resume_fails = 3
 
 def load_state():
     if os.path.exists(DATA_FILE):
@@ -108,7 +108,9 @@ def send_heartbeat(ws, heartbeat_interval, stop_event):
             break
 
 def reset_heartbeat_acks():
-    pass
+    global last_heartbeat_ack_time
+    with heartbeat_ack_lock:
+        last_heartbeat_ack_time = time.time()
 
 def update_voice_state(ws, channel_id, guild_id, mute, deaf):
     voice_state = {
@@ -190,12 +192,13 @@ def watchdog_worker(stop_event):
             logger.warning(f"Error en watchdog: {e}")
 
 def run_voice_connection(token, channel_id, guild_id, status, self_mute, self_deaf, reconnect_attempts=0):
-    global ws_global, channel_id_global, guild_id_global, session_id_global, sequence_global
+    global ws_global, channel_id_global, guild_id_global, session_id_global, sequence_global, resume_fail_count
 
     ws = ws_client.WebSocket()
     gateway_url = 'wss://gateway.discord.gg/?v=9&encoding=json'
     stop_heartbeat = threading.Event()
     heartbeat_thread = None
+    heartbeat_interval = None
     needs_resume = should_resume.is_set() and session_id_global and sequence_global is not None
 
     channel_id_global = channel_id
@@ -225,9 +228,9 @@ def run_voice_connection(token, channel_id, guild_id, status, self_mute, self_de
                 "d": {
                     "token": token,
                     "properties": {
-                        "$os": "Windows 10",
-                        "$browser": "Google Chrome",
-                        "$device": "Windows"
+                        "$os": "Linux",
+                        "$browser": "Discord Client",
+                        "$device": "Linux"
                     },
                     "presence": {
                         "status": status,
@@ -278,23 +281,86 @@ def run_voice_connection(token, channel_id, guild_id, status, self_mute, self_de
                         with heartbeat_ack_lock:
                             last_heartbeat_ack_time = time.time()
                         logger.debug("Heartbeat ACK recibido")
+                        resume_fail_count = 0
                     elif op == 10:
                         logger.debug("Hello recibido (heartbeat configurado)")
                     elif op == 7:
-                        logger.warning("Reconnect requerido por Discord")
+                        logger.warning("Reconnect requerido por Discord. Reidentificando sin cerrar conexión...")
                         should_resume.set()
-                        break
+                        session_id_global = None
+                        sequence_global = None
+                        auth_data = {
+                            "op": 2,
+                            "d": {
+                                "token": token,
+                                "properties": {
+                                    "$os": "Linux",
+                                    "$browser": "Discord Client",
+                                    "$device": "Linux"
+                                },
+                                "presence": {
+                                    "status": status,
+                                    "afk": False
+                                }
+                            }
+                        }
+                        ws.send(json.dumps(auth_data))
+                        voice_state = {
+                            "op": 4,
+                            "d": {
+                                "guild_id": str(guild_id_global) if guild_id_global else None,
+                                "channel_id": str(channel_id_global),
+                                "self_mute": True,
+                                "self_deaf": True
+                            }
+                        }
+                        ws.send(json.dumps(voice_state))
+                        logger.info("Reidentificado tras op 7. Conexión mantenida abierta.")
                     elif op == 9:
                         invalid_session_data = msg.get('d')
                         if invalid_session_data:
-                            logger.warning("Sesión inválida no recuperable (op 9, d=true). Reidentificando...")
-                            should_resume.clear()
-                            session_id_global = None
-                            sequence_global = None
+                            logger.warning("Sesión inválida no recuperable (op 9, d=true). Reidentificando sin cerrar conexión...")
                         else:
-                            logger.warning("Sesión inválida recuperable (op 9, d=false). Reanudando...")
-                            should_resume.set()
-                        break
+                            resume_fail_count += 1
+                            if resume_fail_count >= max_resume_fails:
+                                logger.warning(f"Sesión inválida tras {resume_fail_count} reintentos. Reidentificando sin cerrar conexión...")
+                            else:
+                                logger.warning(f"Sesión inválida recuperable (op 9, d=false). Reanudando... (intento {resume_fail_count}/{max_resume_fails})")
+                                should_resume.set()
+                                continue
+
+                        should_resume.clear()
+                        session_id_global = None
+                        sequence_global = None
+                        resume_fail_count = 0
+
+                        auth_data = {
+                            "op": 2,
+                            "d": {
+                                "token": token,
+                                "properties": {
+                                    "$os": "Linux",
+                                    "$browser": "Discord Client",
+                                    "$device": "Linux"
+                                },
+                                "presence": {
+                                    "status": status,
+                                    "afk": False
+                                }
+                            }
+                        }
+                        ws.send(json.dumps(auth_data))
+                        voice_state = {
+                            "op": 4,
+                            "d": {
+                                "guild_id": str(guild_id_global) if guild_id_global else None,
+                                "channel_id": str(channel_id_global),
+                                "self_mute": True,
+                                "self_deaf": True
+                            }
+                        }
+                        ws.send(json.dumps(voice_state))
+                        logger.info("Reidentificado tras op 9. Conexión mantenida abierta, bot sigue en canal de voz.")
                     elif op == 0:
                         t = msg.get('t', '')
                         if t == 'READY' or t == 'RESUMED':
