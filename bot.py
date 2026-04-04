@@ -91,17 +91,26 @@ def mute_deaf_worker():
         try:
             time.sleep(60)
             
-            if ws_global:
+            if voice_connected.is_set() and channel_id_global and guild_id_global:
+                expected_channel = str(TARGET_CHANNEL_ID)
+                
+                verification_payload = {
+                    "op": 4,
+                    "d": {
+                        "guild_id": str(guild_id_global),
+                        "channel_id": expected_channel,
+                        "self_mute": True,
+                        "self_deaf": True
+                    }
+                }
+                
                 try:
-                    ws_global.ping()
-                    current_mute = random.choice([True, False])
-                    current_deaf = random.choice([True, False])
-                    
-                    update_voice_state(ws_global, channel_id_global, guild_id_global, current_mute, current_deaf)
-                except Exception:
-                    logger.debug("WebSocket no conectado, saltando cambio de mute/deaf")
+                    ws_global.send(json.dumps(verification_payload))
+                    logger.debug("Verificación de presencia enviada")
+                except Exception as e:
+                    logger.warning(f"Error al verificar presencia: {e}")
             else:
-                logger.debug("WebSocket no inicializado, saltando cambio de mute/deaf")
+                logger.debug("Voice no conectado, saltando verificación")
                 
         except Exception as e:
             logger.warning(f"Error en worker de mute/deaf: {e}")
