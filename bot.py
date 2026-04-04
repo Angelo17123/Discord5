@@ -132,7 +132,7 @@ def mute_deaf_worker():
                             "op": 4,
                             "d": {
                                 "guild_id": str(guild_id_global),
-                                "channel_id": str(TARGET_CHANNEL_ID),
+                                "channel_id": str(channel_id_global),
                                 "self_mute": True,
                                 "self_deaf": True
                             }
@@ -145,7 +145,7 @@ def mute_deaf_worker():
                             logger.warning(f"Error al reenviar unión: {e}")
 
             elif voice_connected.is_set() and channel_id_global and guild_id_global:
-                expected_channel = str(TARGET_CHANNEL_ID)
+                expected_channel = str(channel_id_global)
 
                 verification_payload = {
                     "op": 4,
