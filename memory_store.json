@@ -1,0 +1,150 @@
+{
+  "memories": [],
+  "errors": [
+    {
+      "id": "3f2e1035-3d79-46d4-b7e7-b47411dde5b0",
+      "errorMessage": "Bot no reconecta cuando Discord lo expulsa del canal (VOICE_STATE_UPDATE con channel_id: null)",
+      "context": "bot.py - Bot de voz Discord se desconecta y no reconecta automáticamente",
+      "tags": [
+        "discord",
+        "voice",
+        "reconexion",
+        "gateway",
+        "op-code-4"
+      ],
+      "status": "resuelto",
+      "createdAt": "2026-04-04T04:23:18.017Z",
+      "fixId": "3a1da150-6836-4a39-91c8-f5bb11ada602"
+    },
+    {
+      "id": "748bdd6e-419d-43ca-8545-c41d77520e29",
+      "errorMessage": "Op code 9 desconecta siempre sin distinguir entre d:true (recoverable) y d:false (invalid session)",
+      "context": "bot.py:189-191 - Manejo de op code 9 (Invalid Session)",
+      "tags": [
+        "discord",
+        "gateway",
+        "op-code-9",
+        "invalid-session"
+      ],
+      "status": "resuelto",
+      "createdAt": "2026-04-04T04:23:18.878Z",
+      "fixId": "af5aad7f-ebe9-4151-872d-3391b1e617ea"
+    },
+    {
+      "id": "f581e680-7904-4a4f-8e89-ae85b0b3f2bd",
+      "errorMessage": "No guarda session_id ni sequence number, cada reconexión es sesión nueva causando más desconexiones",
+      "context": "bot.py - Sin implementación de Resume (op code 6)",
+      "tags": [
+        "discord",
+        "gateway",
+        "resume",
+        "session-id"
+      ],
+      "status": "resuelto",
+      "createdAt": "2026-04-04T04:23:19.640Z",
+      "fixId": "31a10006-5d3e-4db8-b4e5-c1b339cec52d"
+    },
+    {
+      "id": "847eb993-a3a1-4aa1-8e6a-d37ba8ee387e",
+      "errorMessage": "mute_deaf_worker deja de funcionar cuando voice_connected.clear() y no reintenta unirse",
+      "context": "bot.py:94 - mute_deaf_worker se detiene al expulsar bot",
+      "tags": [
+        "discord",
+        "voice",
+        "worker",
+        "mute-deaf"
+      ],
+      "status": "resuelto",
+      "createdAt": "2026-04-04T04:23:20.386Z",
+      "fixId": "276bd474-4a21-4b4b-bf5f-38b2b105bcc1"
+    },
+    {
+      "id": "924dc20a-88ba-4749-87bb-ae745f5de560",
+      "errorMessage": "Heartbeat se envía sin verificar si recibe ACK, conexión muerta no se detecta",
+      "context": "bot.py:66-74 - Heartbeat sin verificación de ACK",
+      "tags": [
+        "discord",
+        "gateway",
+        "heartbeat",
+        "ack"
+      ],
+      "status": "resuelto",
+      "createdAt": "2026-04-04T04:23:21.291Z",
+      "fixId": "b1355123-9431-41b6-9fd4-5efa6a21f7b1"
+    },
+    {
+      "id": "50a8e95b-9291-4afc-82fa-860234677ccf",
+      "errorMessage": "Backoff lineal en lugar de exponencial con jitter, causa reconexiones ineficientes y posible ratelimiting",
+      "context": "bot.py:243 - Backoff de reconexión lineal",
+      "tags": [
+        "discord",
+        "reconexion",
+        "backoff",
+        "ratelimit"
+      ],
+      "status": "resuelto",
+      "createdAt": "2026-04-04T04:23:22.531Z",
+      "fixId": "7e2d244e-3948-4be9-a312-89ee75862e3b"
+    }
+  ],
+  "fixes": [
+    {
+      "id": "3a1da150-6836-4a39-91c8-f5bb11ada602",
+      "errorId": "3f2e1035-3d79-46d4-b7e7-b47411dde5b0",
+      "fixDescription": "Detectar VOICE_STATE_UPDATE con channel_id=null (expulsión) y reenviar op 4 inmediatamente para reunirse al canal. Worker mute_deaf ahora reintenta cada 30s incluso si fue expulsado.",
+      "codeBefore": "elif op == 0:\n    t = msg.get('t', '')\n    if t == 'VOICE_STATE_UPDATE' or t == 'VOICE_SERVER_UPDATE':\n        logger.info(f\"Evento de voz recibido: {t}\")",
+      "codeAfter": "elif t == 'VOICE_STATE_UPDATE':\n    d = msg.get('d', {})\n    if d.get('user_id') == user_info['id']:\n        current_channel = d.get('channel_id')\n        if current_channel is None:\n            kicked_from_channel.set()\n            reenviar op 4 inmediatamente para reunirse",
+      "language": "python",
+      "createdAt": "2026-04-04T04:24:30.432Z"
+    },
+    {
+      "id": "af5aad7f-ebe9-4151-872d-3391b1e617ea",
+      "errorId": "748bdd6e-419d-43ca-8545-c41d77520e29",
+      "fixDescription": "Op 9 ahora distingue d=true (sesión inválida no recuperable, limpiar sesión) de d=false (recuperable, mantener sesión para resume).",
+      "codeBefore": "elif op == 9:\n    logger.warning(f\"Desconexión: {msg.get('d')}\")\n    break",
+      "codeAfter": "elif op == 9:\n    invalid_session_data = msg.get('d')\n    if invalid_session_data:\n        should_resume.clear()\n        session_id_global = None\n    else:\n        should_resume.set()",
+      "language": "python",
+      "createdAt": "2026-04-04T04:24:32.290Z"
+    },
+    {
+      "id": "31a10006-5d3e-4db8-b4e5-c1b339cec52d",
+      "errorId": "f581e680-7904-4a4f-8e89-ae85b0b3f2bd",
+      "fixDescription": "Implementado RESUME (op 6). Guarda session_id de READY/RESUMED y sequence de cada mensaje. Reintenta resume al reconectar si la sesión es válida.",
+      "codeBefore": "auth_data = {\"op\": 2, \"d\": {\"token\": token, ...}}\nws.send(json.dumps(auth_data))",
+      "codeAfter": "if needs_resume:\n    resume_payload = {\"op\": 6, \"d\": {\"token\": token, \"session_id\": session_id_global, \"seq\": sequence_global}}\n    ws.send(json.dumps(resume_payload))",
+      "language": "python",
+      "createdAt": "2026-04-04T04:24:34.358Z"
+    },
+    {
+      "id": "276bd474-4a21-4b4b-bf5f-38b2b105bcc1",
+      "errorId": "847eb993-a3a1-4aa1-8e6a-d37ba8ee387e",
+      "fixDescription": "mute_deaf_worker ahora detecta kicked_from_channel y reenvía op 4 cada 30s incluso si fue expulsado. Ya no se detiene cuando voice_connected.clear().",
+      "codeBefore": "def mute_deaf_worker():\n    while running.is_set():\n        if voice_connected.is_set() and channel_id_global and guild_id_global:\n            enviar verificacion\n        else:\n            logger.debug(\"Voice no conectado, saltando verificación\")",
+      "codeAfter": "def mute_deaf_worker():\n    while running.is_set():\n        if kicked_from_channel.is_set():\n            reenviar union al canal\n            kicked_from_channel.clear()\n        elif voice_connected.is_set():\n            enviar verificacion",
+      "language": "python",
+      "createdAt": "2026-04-04T04:24:40.208Z"
+    },
+    {
+      "id": "b1355123-9431-41b6-9fd4-5efa6a21f7b1",
+      "errorId": "924dc20a-88ba-4749-87bb-ae745f5de560",
+      "fixDescription": "Heartbeat ahora trackea ACKs recibidos. Si pasan 2.5x el intervalo sin ACK, reconecta automáticamente.",
+      "codeBefore": "def send_heartbeat(ws, heartbeat_interval, stop_event):\n    while not stop_event.is_set():\n        time.sleep(heartbeat_interval / 1000)\n        ws.send(json.dumps({\"op\": 1, \"d\": None}))",
+      "codeAfter": "def send_heartbeat(ws, heartbeat_interval, stop_event):\n    last_ack_time = time.time()\n    consecutive_missed_acks = 0\n    while not stop_event.is_set():\n        time_since_last_ack = now - last_ack_time\n        timeout_threshold = (heartbeat_interval / 1000) * HEARTBEAT_ACK_TIMEOUT_MULTIPLIER\n        if time_since_last_ack > timeout_threshold and consecutive_missed_acks > 0:\n            break",
+      "language": "python",
+      "createdAt": "2026-04-04T04:24:42.367Z"
+    },
+    {
+      "id": "7e2d244e-3948-4be9-a312-89ee75862e3b",
+      "errorId": "50a8e95b-9291-4afc-82fa-860234677ccf",
+      "fixDescription": "Backoff exponencial con jitter (2^attempt * base + random 0-50%). Máximo 120 segundos. Evita ratelimiting de Discord.",
+      "codeBefore": "delay = RECONNECT_DELAY * (reconnect_attempts + 1)",
+      "codeAfter": "def calculate_backoff(attempt):\n    delay = RECONNECT_DELAY_BASE * (2 ** attempt)\n    jitter = random.uniform(0, delay * 0.5)\n    return min(delay + jitter, 120)",
+      "language": "python",
+      "createdAt": "2026-04-04T04:24:44.139Z"
+    }
+  ],
+  "snippets": [],
+  "metadata": {
+    "lastSessionAt": "2026-04-04T04:24:44.139Z"
+  }
+}
