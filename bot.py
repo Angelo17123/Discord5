@@ -44,6 +44,7 @@ session_id_global = None
 sequence_global = None
 should_resume = threading.Event()
 kicked_from_channel = threading.Event()
+watchdog_stop = threading.Event()
 
 def load_state():
     if os.path.exists(DATA_FILE):
@@ -170,6 +171,20 @@ def mute_deaf_worker():
         except Exception as e:
             logger.warning(f"Error en worker de mute/deaf: {e}")
 
+def watchdog_worker(stop_event):
+    last_log_time = time.time()
+    while not stop_event.is_set():
+        try:
+            time.sleep(120)
+            if stop_event.is_set():
+                break
+            if voice_connected.is_set():
+                uptime = time.time() - last_log_time
+                mins = int(uptime // 60)
+                logger.info(f"Bot activo - canal: {channel_id_global}, uptime: {mins} min")
+        except Exception as e:
+            logger.warning(f"Error en watchdog: {e}")
+
 def run_voice_connection(token, channel_id, guild_id, status, self_mute, self_deaf, reconnect_attempts=0):
     global ws_global, channel_id_global, guild_id_global, session_id_global, sequence_global
 
@@ -294,7 +309,7 @@ def run_voice_connection(token, channel_id, guild_id, status, self_mute, self_de
                                             "op": 4,
                                             "d": {
                                                 "guild_id": str(guild_id_global),
-                                                "channel_id": str(TARGET_CHANNEL_ID),
+                                                "channel_id": str(channel_id_global),
                                                 "self_mute": True,
                                                 "self_deaf": True
                                             }
@@ -364,8 +379,11 @@ def voice_worker():
 
     running.set()
     kicked_from_channel.clear()
+    watchdog_stop.clear()
     mute_deaf_thread = threading.Thread(target=mute_deaf_worker, daemon=True)
     mute_deaf_thread.start()
+    watchdog_thread = threading.Thread(target=watchdog_worker, args=(watchdog_stop,), daemon=True)
+    watchdog_thread.start()
 
     reconnect_attempts = 0
     while True:
