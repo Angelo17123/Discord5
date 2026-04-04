@@ -357,7 +357,7 @@ def calculate_backoff(attempt):
     return min(delay + jitter, 120)
 
 def voice_worker():
-    global ws_global
+    global ws_global, channel_id_global
 
     logger.info("Iniciando worker de voz...")
 
@@ -369,7 +369,7 @@ def voice_worker():
         return
 
     saved_channel, saved_session, saved_seq = load_state()
-    channel_id = saved_channel or TARGET_CHANNEL_ID
+    channel_id_global = saved_channel or TARGET_CHANNEL_ID
 
     if saved_session and saved_seq is not None:
         session_id_global = saved_session
@@ -396,8 +396,9 @@ def voice_worker():
                 session_id_global = None
                 sequence_global = None
 
-            logger.info(f"Conectando al canal {channel_id}... (intento {reconnect_attempts + 1}/{MAX_RECONNECT_ATTEMPTS})")
-            run_voice_connection(TOKEN, channel_id, GUILD_ID, STATUS, SELF_MUTE, SELF_DEAF, reconnect_attempts)
+            canal_actual = channel_id_global
+            logger.info(f"Conectando al canal {canal_actual}... (intento {reconnect_attempts + 1}/{MAX_RECONNECT_ATTEMPTS})")
+            run_voice_connection(TOKEN, canal_actual, GUILD_ID, STATUS, SELF_MUTE, SELF_DEAF, reconnect_attempts)
 
             delay = calculate_backoff(reconnect_attempts)
             logger.info(f"Desconectado. Reintentando en {delay:.1f} segundos... (backoff exponencial)")
