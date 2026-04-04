@@ -76,10 +76,15 @@ def save_state(channel_id, session_id=None, sequence=None):
 
 def get_user_info(token):
     import requests
-    headers = {"Authorization": token, "Content-Type": "application/json"}
-    resp = requests.get('https://discord.com/api/v9/users/@me', headers=headers)
-    if resp.status_code == 200:
-        return resp.json()
+    headers = {"Authorization": f"Bot {token}", "Content-Type": "application/json"}
+    try:
+        resp = requests.get('https://discord.com/api/v9/users/@me', headers=headers, timeout=10)
+        if resp.status_code == 200:
+            return resp.json()
+        else:
+            logger.error(f"get_user_info falló: HTTP {resp.status_code} - {resp.text[:200]}")
+    except Exception as e:
+        logger.error(f"get_user_info excepción: {e}")
     return None
 
 def send_heartbeat(ws, heartbeat_interval, stop_event):
@@ -432,12 +437,21 @@ def voice_worker():
 
     logger.info("Iniciando worker de voz...")
 
-    user_info = get_user_info(TOKEN)
+    # FIX: Reintentar get_user_info en vez de morir al primer fallo
+    user_info = None
+    for attempt in range(5):
+        user_info = get_user_info(TOKEN)
+        if user_info:
+            break
+        wait = 5 * (attempt + 1)
+        logger.warning(f"get_user_info falló (intento {attempt+1}/5). Reintentando en {wait}s...")
+        time.sleep(wait)
+
     if user_info:
         cached_user_id = user_info['id']  # FIX: cachear desde el inicio
         logger.info(f"Logged in as {user_info['username']}#{user_info['discriminator']} ({user_info['id']})")
     else:
-        logger.error("No se pudo obtener información del usuario")
+        logger.error("No se pudo obtener información del usuario tras 5 intentos. Verifica el TOKEN.")
         return
 
     saved_channel, saved_session, saved_seq = load_state()
