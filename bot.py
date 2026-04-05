@@ -436,10 +436,13 @@ def voice_worker():
     
     logger.info("=== INICIANDO VOICE WORKER (24/7 MODE) ===")
     
+    running.set()  # Activar flag de ejecucion ANTES de intentar auth
+    
     # Validar token primero
     if not TOKEN:
         logger.error("!!! ERROR: No se encontró TOKEN en variables de entorno !!!")
         logger.error("Añade TOKEN en el dashboard de Render (Settings -> Environment Variables)")
+        running.clear()
         return
     
     # Obtener info del bot (con reintentos infinitos hasta lograrlo)
@@ -470,7 +473,6 @@ def voice_worker():
         should_resume.set()
         logger.info("Estado anterior encontrado, se intentará RESUME")
     
-    running.set()
     reconnect_attempts = 0
     
     while running.is_set():
