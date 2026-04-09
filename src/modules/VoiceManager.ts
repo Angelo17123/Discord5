@@ -49,8 +49,8 @@ export class VoiceManager implements IVoiceManager {
       try {
         // Conectar usando la API del selfbot
         await this.client.voice.joinChannel(voiceChannel, {
-          selfMute: false,
-          selfDeaf: true,
+          selfMute: true,
+          selfDeaf: false,
         });
 
         this.connectionStartTime = new Date();
