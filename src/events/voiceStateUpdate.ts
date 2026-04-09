@@ -35,7 +35,7 @@ export const voiceStateUpdate: Event = {
       logVoice('MOVIDO', `${(oldChannel as any).name} → ${(newChannel as any).name}`, newState.guild.name);
 
       if (newChannel.id !== client.config.discord.baseChannelId) {
-        client.voiceManager.updateTarget(newChannel.id, newState.guild.id);
+        await client.voiceManager.updateTarget(newChannel.id, newState.guild.id);
         log.info(`🔒 Nuevo canal objetivo: ${(newChannel as any).name}`);
       }
       return;

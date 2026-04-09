@@ -132,7 +132,6 @@ export class VoiceManager implements IVoiceManager {
    */
   async updateTarget(channelId: string, guildId: string): Promise<void> {
     if (channelId !== this.targetChannelId) {
-      const oldChannel = this.targetChannelId;
       this.targetChannelId = channelId;
       this.targetGuildId = guildId;
       this.reconnectAttempts = 0;
