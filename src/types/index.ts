@@ -92,7 +92,7 @@ export interface VoiceManager {
   moveToChannel(channelId: string): Promise<void>;
   getConnectionTime(): number;
   getStatus(): { connected: boolean; channel: string | null; guild: string | null; connectionTime: number };
-  updateTarget(channelId: string, guildId: string): void;
+  updateTarget(channelId: string, guildId: string): Promise<void>;
   startWatchdog(): void;
 }
 

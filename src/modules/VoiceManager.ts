@@ -130,12 +130,23 @@ export class VoiceManager implements IVoiceManager {
   /**
    * Actualizar canal objetivo (cuando te mueven)
    */
-  updateTarget(channelId: string, guildId: string): void {
+  async updateTarget(channelId: string, guildId: string): Promise<void> {
     if (channelId !== this.targetChannelId) {
+      const oldChannel = this.targetChannelId;
       this.targetChannelId = channelId;
       this.targetGuildId = guildId;
       this.reconnectAttempts = 0;
-      log.info(`Nuevo canal objetivo bloqueado: ${channelId}`);
+      
+      const channel = await this.client.channels.fetch(channelId).catch(() => null);
+      const channelName = (channel as any)?.name || channelId;
+      log.info(`🔒 Nuevo canal objetivo: ${channelName}`);
+      
+      // Desconectar del canal anterior y conectarse al nuevo
+      await this.leaveChannel();
+      
+      // Delay antes de conectar al nuevo canal
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await this.joinTarget();
     }
   }
 
