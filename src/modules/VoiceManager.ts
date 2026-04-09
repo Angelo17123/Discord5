@@ -93,12 +93,7 @@ export class VoiceManager implements IVoiceManager {
       const connection = guild.voiceStates.cache.get(this.client.user!.id);
       if (connection?.channel) {
         const channelName = (connection.channel as any).name;
-        try {
-          await this.client.voice.leave(guild.id);
-          logVoice('DESCONECTADO', channelName, guild.name);
-        } catch (e) {
-          log.debug('No se pudo desconectar manualmente');
-        }
+        logVoice('DESCONECTADO', channelName, guild.name);
       }
 
       this.connectionStartTime = null;
