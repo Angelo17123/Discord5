@@ -93,13 +93,17 @@ export class VoiceManager implements IVoiceManager {
       const connection = guild.voiceStates.cache.get(this.client.user!.id);
       if (connection?.channel) {
         const channelName = (connection.channel as any).name;
-        await (connection.channel as any).leave();
-        logVoice('DESCONECTADO', channelName, guild.name);
+        try {
+          await this.client.voice.leave(guild.id);
+          logVoice('DESCONECTADO', channelName, guild.name);
+        } catch (e) {
+          log.debug('No se pudo desconectar manualmente');
+        }
       }
 
       this.connectionStartTime = null;
     } catch (error) {
-      logError(error as Error, 'VoiceManager.leaveChannel');
+      log.debug('Error en leaveChannel:', error);
     }
   }
 
@@ -129,9 +133,18 @@ export class VoiceManager implements IVoiceManager {
 
   /**
    * Actualizar canal objetivo (cuando te mueven)
+   * Se queda en el nuevo canal aunque no tenga permisos
    */
   async updateTarget(channelId: string, guildId: string): Promise<void> {
     if (channelId !== this.targetChannelId) {
+      // Desconectar del canal anterior (sin importar si falla)
+      try {
+        await this.leaveChannel();
+      } catch (e) {
+        log.debug('Error al desconectar:', e);
+      }
+      
+      // Actualizar objetivo
       this.targetChannelId = channelId;
       this.targetGuildId = guildId;
       this.reconnectAttempts = 0;
@@ -140,12 +153,8 @@ export class VoiceManager implements IVoiceManager {
       const channelName = (channel as any)?.name || channelId;
       log.info(`🔒 Nuevo canal objetivo: ${channelName}`);
       
-      // Desconectar del canal anterior y conectarse al nuevo
-      await this.leaveChannel();
-      
-      // Delay antes de conectar al nuevo canal
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      await this.joinTarget();
+      // NO reconectar automáticamente - el usuario debe dar permisos manualmente
+      // Solo informar que está en el nuevo canal
     }
   }
 
