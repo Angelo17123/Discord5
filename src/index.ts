@@ -14,22 +14,18 @@ import { randomDelay } from './utils/safety';
 const config: BotConfig = loadConfig();
 
 // ============================================
-// WEB SERVER PARA RENDER (SOLO SI ESTÁ HABILITADO)
+// WEB SERVER PARA RENDER (HEALTH CHECK)
 // ============================================
-// SEGURIDAD: El servidor web es OPCIONAL y NO expone info del bot
-if (config.dashboard.enabled) {
-  const http = require('http');
-  const PORT = parseInt(process.env.PORT || '3000', 10);
-  const server = http.createServer((_req: any, res: any) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    // NO exponer NINGUNA información del bot - solo "OK"
-    res.end('OK');
-  });
+const http = require('http');
+const PORT = parseInt(process.env.PORT || '10000', 10);
+const server = http.createServer((_req: any, res: any) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('OK');
+});
 
-  server.listen(PORT, '0.0.0.0', () => {
-    log.info(`Servidor web minimalista en puerto ${PORT}`);
-  });
-}
+server.listen(PORT, '0.0.0.0', () => {
+  log.info(`Health check server en puerto ${PORT}`);
+});
 
 // Validar configuración
 if (!validateConfig(config)) {
