@@ -30,9 +30,9 @@ const authMiddleware = (req, res, next) => {
   next();
 };
 
-// Rutas
+// Rutas - Health check para Render
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.send('OK');
 });
 
 // API - Estadísticas
